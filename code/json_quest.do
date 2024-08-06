@@ -5,36 +5,36 @@ python:
 
 import json
 
+foundfields=""
+
+def foundq(s):
+  global foundfields
+  print(" "+s['VariableName']+":"+s['QuestionText'])
+  foundfields=foundfields+" "+s['VariableName']
+
 def traverse(node):
   if (node['Children']!=None):
-    for s in node['Children']:
-      if (s['\$type']=="SingleQuestion"):
-        print(" "+s['VariableName']+":"+s['QuestionText'])
-      if (s['\$type']=="Group"):
-        traverse(s)
+    for child in node['Children']:
+      if (child['\$type']=="SingleQuestion"):
+        foundq(child)
+      if (child['\$type']=="Group"):
+        if (child['IsRoster']!=True): ## // not going inside the rosters for now
+          traverse(child)
 
 def proc(fname):
-    
-  print("Hello World!")
-  
+  global foundfields
+  foundfields=""
   with open(fname, 'r') as f:
     Q = json.load(f)  
 
-  C=Q['Children']
-  for sect in C:
-    print("======"+sect['Title']+"======")
-    # print(sect)
-
-    if (sect['Children']!=None):
-      for s in sect['Children']:
-        if (s['\$type']=="SingleQuestion"):
-          print(" "+s['VariableName']+":"+s['QuestionText'])
-        if (s['\$type']=="Group"):
-          if (s['IsRoster']!=1):
-            traverse(s)
+  SECTIONS=Q['Children']
+  for oneSection in SECTIONS:
+    print("======"+oneSection['Title']+"======")
+    traverse(oneSection)
+	
+  return(foundfields)
 end
 
-python: proc("c:/Temp/4/Questionnaire/content/document.json")
-
+python: print(proc("c:/Temp/4/Questionnaire/content/document.json"))
 
 // end of file

@@ -48,7 +48,6 @@ program define rapor
 	local questions=`"`foundfields'"'
 
 	use "c:/Temp/4/Household.dta"
-	replace region=.
 	local fontname="Arial"
 
 	file open fh using "`outfolder'\`outfile'", write text replace
@@ -74,7 +73,6 @@ program define rapor
 			quietly fre `q' if (!missing(`q'))
 			matrix F= r(valid)
 			local labels `"`r(lab_valid)' "'
-			display `"`labels'"'
 			local n=r(N)
 
 			file write fh `"<CENTER><IMG src="_`q'.png" width=600></CENTER>"' _n
@@ -85,7 +83,6 @@ program define rapor
 				local p=string(F[`i',1]/`n'*100.0,"%25.1f")+"%"
 				//local ll `"`:word `i' of `labels''"' // works unexpectedly with unbalanced quotes
 				gettoken ll labels : labels
-				display `"`ll'"'
 				local ppp=strpos(`"`ll'"', " ")
 				local ll=substr(`"`ll'"',`ppp'+1,.)
 				file write fh `"<TR><TD><FONT face="`fontname'">`ll'</FONT></TD><TD align="right"><FONT face="`fontname'">`p'</FONT></TD><TD align="right"><FONT face="`fontname'">`=F[`i',1]'</FONT></TD></TR>"' _n

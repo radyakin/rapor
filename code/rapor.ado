@@ -193,7 +193,7 @@ program define rapor
 				  over(`q') plabel(_all percent , format(%8.1f)) ///
 				  scheme("`scheme'") // Option scale() is not permitted here, see: https://www.stata.com/statalist/archive/2008-05/msg00195.html
 				graph display, scale(1.00) // workaround for scale
-				graph export "`outfolder'\_`q'.png", as(png) width(`imagewidth') replace
+				graph export "`outfolder'/_`q'.png", as(png) width(`imagewidth') replace
 				// graph doesn't show both percent and label - see: https://www.statalist.org/forums/forum/general-stata-discussion/general/1129-pie-chart-with-labels-and-percantage-together-on-slice
 				set graphics `grmode'
 

@@ -21,6 +21,14 @@ class qinfo:
     self.multi=""
     self.all=""
 
+  def savetolocals(self, root):
+    Macro.setLocal(root+"_single", self.single)
+    Macro.setLocal(root+"_text", self.text)
+    Macro.setLocal(root+"_multi", self.multi)
+    Macro.setLocal(root+"_all", self.all)
+    Macro.setLocal(root+"_mainfile", self.fname)
+    Macro.setLocal(root+"_title", self.title)
+
 Q=qinfo()
 
 def foundq(s):
@@ -64,11 +72,7 @@ def proc(fname):
   for oneSection in SECTIONS:
     # // print("======"+oneSection['Title']+"======")
     traverse(oneSection)
-  Macro.setLocal("foundfields_single",Q.single)
-  Macro.setLocal("foundfields_text",Q.text)
-  Macro.setLocal("foundfields_multi",Q.multi)
-  Macro.setLocal("foundfields_all",Q.all)
-  Macro.setLocal("mainfile",Q.fname)
+  Q.savetolocals("Q")
   print(Q)
   return(Q.all)
 end
@@ -79,9 +83,13 @@ program define rapor
 	quietly which fre // requires: FRE
 
 	syntax , ///
-	  outfolder(string) ///  // destination folder where output will be saved, may not be empty!
-	  [outfile(string)] ///  // name of the output file (default is index.html)
-	  exportfile(string)
+	  outfolder(string)      ///  // destination folder where output will be saved, may not be empty!
+	  [outfile(string)]      ///  // short name of the output file (default is index.html)
+	  exportfile(string)     /// // full name of the export data file
+	  [scheme(string)]       /// // Scheme name (optional, default is currently set scheme.)
+	  [imagewidth(int 1200)] /// // Image width (optional, default is 1200)
+	  [strlimit(int 99)]     /// // Limit on number of open text answers included (default=99).
+	  [minstr(int 0)]        /// // Min length of open text answer to be considered for showing (default=0)
 	
 	if (`"`outfile'"'=="") local outfile="index.html"
 	
@@ -104,10 +112,10 @@ program define rapor
 	cd `"`pwd'"'
 
 	python: print(proc("`jsonfile'"))
-	display `"`foundfields_all'"'
-	local questions=`"`foundfields_all'"'
+	display `"`Q_all'"'
+	local questions=`"`Q_all'"'
 
-	use "`outfolder'/_TEMP/`mainfile'.dta"
+	use "`outfolder'/_TEMP/`Q_mainfile'.dta"
 	// no longer need temporary content after the data is loaded
 	shell rmdir "`outfolder'/_TEMP" /s /q   
 	
@@ -115,6 +123,10 @@ program define rapor
 	replace material_walls_other="Test" in 9
 	
 	local fontname="Arial"
+	local fontnamefx="Courier New"
+	local wtable=800
+	local wimage=600
+	local wcolumn=120
 
 	file open fh using "`outfolder'/`outfile'", write text replace
 	file write fh "<HTML><BODY>" _n
@@ -123,24 +135,31 @@ program define rapor
 		file write fh `"<H2><FONT face="`fontname'">`q': `:variable label `q'' </FONT></H2>"' _n
 		
 		// check if there are any observations in `q'!
-		if (strpos(" `foundfields_text' ", " `q' ")>0) {
+		if (strpos(" `Q_text' ", " `q' ")>0) {
 			// Process text field
-			count if (!missing(`q') & (`q'!="##N/A##"))
+			quietly count if (!missing(`q') & (`q'!="##N/A##") & (strtrim(`q')!="") & (strlen(strtrim(`q'))>`minstr'))
 			if (r(N)==0) {
 				file write fh `"<FONT face="`fontname'">No observations</FONT>"'
 			}
 			else {
-				file write fh `"<TABLE border="1" cellpadding="6" cellspacing="0" width="800px" style="border-collapse:collapse;">"'
-				file write fh `"<B>ResponseID</B><B>Response</B>"'
+				file write fh `"<TABLE border="0" cellpadding="6" cellspacing="0" width="`wtable'px" style="border-collapse:collapse;">"'
+				file write fh `"<TR><TH width=`wcolumn'>ResponseID</TH><TH>Response</TH></TR>"'
+				
+				
+				local written=0
 				forval i=1/`=_N' {
-					if (!missing(`q'[`i']) & (`q'[`i']!="##N/A##")) {
-						file write fh `"<FONT face="Courier New">`=interview__key[`i']'</FONT>&nbsp;&nbsp;&nbsp;:&nbsp;&nbsp;&nbsp;<I> `=`q'[`i']'</I><BR>"' _n
+					if (!missing(`q'[`i']) & (`q'[`i']!="##N/A##")& (strtrim(`q'[`i'])!="") & (strlen(strtrim(`q'[`i']))>`minstr')) {
+						file write fh `"<TR><TD><FONT face="`fontnamefx'" size=3>`=interview__key[`i']'</FONT></TD><TD><I> `=`q'[`i']'</I></TD></TR>"' _n
+
+						local written=`written'+1
+						if (`written'>=`strlimit') continue, break
+
 					}
 				}
 				file write fh `"</TABLE>"'
 			}
 		}
-		if (strpos(" `foundfields_single' ", " `q' ")>0) {
+		if (strpos(" `Q_single' ", " `q' ")>0) {
 		
 			quietly count if !missing(`q')
 			
@@ -148,22 +167,24 @@ program define rapor
 				file write fh `"<FONT face="`fontname'">No observations</FONT>"'
 			}
 			else {
+				local grmode=`"`c(graphics)'"'
 				set graphics off
 				graph pie if (!missing(`q')), ///
 				  over(`q') plabel(_all percent , format(%8.1f)) ///
-				  scheme("stgcolor_mv") // Option scale() is not permitted here, see: https://www.stata.com/statalist/archive/2008-05/msg00195.html
+				  scheme("`scheme'") // Option scale() is not permitted here, see: https://www.stata.com/statalist/archive/2008-05/msg00195.html
 				graph display, scale(1.00) // workaround for scale
-				graph export "`outfolder'\_`q'.png", as(png) width(1200) replace
+				graph export "`outfolder'\_`q'.png", as(png) width(`imagewidth') replace
 				// graph doesn't show both percent and label - see: https://www.statalist.org/forums/forum/general-stata-discussion/general/1129-pie-chart-with-labels-and-percantage-together-on-slice
+				set graphics `grmode'
 
 				quietly fre `q' if (!missing(`q'))
 				matrix F= r(valid)
 				local labels `"`r(lab_valid)' "'
 				local n=r(N)
 
-				file write fh `"<CENTER><A href="_`q'.png"><IMG src="_`q'.png" width=600></A></CENTER>"' _n
-				file write fh `"<CENTER><TABLE border="1" cellpadding="6" cellspacing="0" width="800px" style="border-collapse:collapse;">"' _n
-				file write fh `"<TH bgcolor="orange"><FONT face="`fontname'">Value</FONT></TH><TH bgcolor="orange" width=100><FONT face="`fontname'">Percent</FONT></TH><TH bgcolor="orange" width=100><FONT face="`fontname'">Responses</FONT></TH>"' _n
+				file write fh `"<CENTER><A href="_`q'.png"><IMG src="_`q'.png" width=`wimage'></A></CENTER>"' _n
+				file write fh `"<CENTER><TABLE border="1" cellpadding="6" cellspacing="0" width="`wtable'px" style="border-collapse:collapse;">"' _n
+				file write fh `"<TH bgcolor="orange"><FONT face="`fontname'">Value</FONT></TH><TH bgcolor="orange" width=`wcolumn'><FONT face="`fontname'">Percent</FONT></TH><TH bgcolor="orange" width=`wcolumn'><FONT face="`fontname'">Responses</FONT></TH>"' _n
 				local r=`:rowsof F'
 				forval i=1/`r' {
 					local p=string(F[`i',1]/`n'*100.0,"%25.1f")+"%"

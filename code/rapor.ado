@@ -126,9 +126,9 @@ program define rapor
 	use "`outfolder'/_TEMP/`Q_mainfile'.dta"
 	// no longer need temporary content after the data is loaded
 	shell rmdir "`outfolder'/_TEMP" /s /q   
-	
-	replace material_walls=4 in 9  // CLEAN UP THIS
-	replace material_walls_other="Test" in 9
+	/*
+	replace material_walls=4 in 9  // FOR TESTING PURPOSES ONLY
+	replace material_walls_other="Test" in 9 */
 	
 	local fontname="Arial"
 	local fontnamefx="Courier New"
@@ -137,7 +137,14 @@ program define rapor
 	local wcolumn=120
 
 	file open fh using "`outfolder'/`outfile'", write text replace
-	file write fh "<HTML><BODY>" _n
+	file write fh "<HTML>" _n
+	file write fh "<STYLE>" _n
+	file write fh "@media print {" _n
+	file write fh "    .pagebreak { page-break-before: always; }" _n
+	file write fh "}"
+	file write fh "</STYLE>" _n
+	
+	file write fh "<BODY>" _n
 	
 	// HEADER
 	
@@ -153,7 +160,7 @@ program define rapor
 	file write fh `"</TD></TR></TABLE>"' _n
 
 	foreach q in `questions' {
-		file write fh `"<H2><FONT face="`fontname'">`q': `:variable label `q'' </FONT></H2>"' _n
+		file write fh `"<div class="pagebreak"> </div><H2><FONT face="`fontname'">`q': `:variable label `q'' </FONT></H2>"' _n
 		
 		// check if there are any observations in `q'!
 		if (strpos(" `Q_text' ", " `q' ")>0) {

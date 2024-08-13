@@ -12,6 +12,7 @@ class qinfo:
   single:str = ""
   multi:str = ""
   all:str = ""
+  cats={}
   
   def reset(self):
     self.fname=""
@@ -20,6 +21,8 @@ class qinfo:
     self.single=""
     self.multi=""
     self.all=""
+    self.cats={}
+    self.titles={}
 
   def savetolocals(self, root):
     Macro.setLocal(root+"_single", self.single)
@@ -28,19 +31,38 @@ class qinfo:
     Macro.setLocal(root+"_all", self.all)
     Macro.setLocal(root+"_mainfile", self.fname)
     Macro.setLocal(root+"_title", self.title)
+    
+    k=self.cats.keys()
+    for key in k:
+      Macro.setLocal(root+"_c__"+key, self.cats[key])
+
+  def getQuestionTitle(self, q):
+    return(self.titles[q])
 
 Q=qinfo()
 
 def foundq(s):
   global Q
-  Q.all=Q.all + " " + s['VariableName']
-  print(" "+s['VariableName']+":"+s['QuestionText'])
+  vn=s['VariableName']
+  qt=s['QuestionText']
+  Q.all=Q.all + " " + vn
+  Q.titles[vn]=qt
+  print(" " + vn + ":" + qt)
 
 def foundq_single(s):
   global Q
   Q.single=Q.single+" "+s['VariableName']
   foundq(s)
 
+def foundq_multi(s):
+  global Q
+  vn=s['VariableName']
+  Q.multi=Q.multi+" "+vn
+  Q.cats[vn]=""
+  for a in s['Answers']:
+    Q.cats[vn]=Q.cats[vn] + " \"" + a['AnswerText']+"\""
+  foundq(s)
+  
 def foundq_text(s):
   global Q
   Q.text=Q.text+" "+s['VariableName']
@@ -52,6 +74,9 @@ def traverse(node):
 	  if (child['\$type']=="SingleQuestion"):
 		if (('LinkedToRosterId' not in child) and ('LinkedToQuestionId' not in child)):
 		  foundq_single(child)
+	  if (child['\$type']=="MultyOptionsQuestion"):
+	    if ('CategoriesId' not in child):
+	      foundq_multi(child)
 	  if (child['\$type']=="TextQuestion"):
 	    foundq_text(child)
 	  if (child['\$type']=="Group"):
@@ -74,6 +99,78 @@ def proc(fname):
     traverse(oneSection)
   Q.savetolocals("Q")
   # // return(Q.all)
+end
+
+
+program define graph_mselect, rclass
+    version 18.0
+    syntax , vname(string) lbls(string) [title(string)] /// // this is expected to be read from the JSON of the questionnaire
+    [format(string)] /// 
+    [percent] 
+  
+    if (`"`format'"'=="") local format="%6.1f"
+	quietly ds `vname'__*
+	local vnames=r(varlist)
+	
+	local n : word count `vnames'
+	
+	tempname M
+	matrix `M'=J(`n',2,.)
+
+	if ("`percent'"!="") {
+		local scalor=100
+		local range1="0(10)100"
+		local range2="0(5)100"	
+	}
+	else {
+		local scalor=1
+		local range1="0(.1)1"
+		local range2="0(.05)1"
+	}
+
+	frame create GDATA
+	frame GDATA: generate cat=.
+	frame GDATA: generate strL lbl=""
+	frame GDATA: generate mean=.
+
+	tempname valuelabel
+	local nn=.
+
+	forval i=1/`n' {
+		local ii=`n'+1-`i'
+		local vn : word `i' of `vnames'
+		summarize `vn', meanonly
+		matrix `M'[`i',1]=r(mean)*`scalor'
+		matrix `M'[`i',2]=r(sum) // TODO: this is good only for 0/1 values, not good for ordered ones.
+		local nn=r(N)
+		
+		frame post GDATA (`ii') (`"`: word `i' of `lbls''"') (`=`r(mean)'*`scalor'') 
+		local `valuelabel' `ii' `"`: word `i' of `lbls''"' ``valuelabel''
+		frame GDATA: label define `valuelabel' `ii' `"`: word `i' of `lbls''"', modify
+	}
+
+	frame GDATA {
+		label values cat `valuelabel'
+		generate meanstr=string(mean, "`format'")+cond(`scalor'==100,"%","")
+
+		graph twoway ///
+		  (scatter mean cat, ///
+		  scale(0.75) recast(bar) horizontal ///
+		  ylabel(`range1') ylabel(``valuelabel'') ///
+		  xtitle(`"`=cond(`scalor'==100,"percent","")'"') ///
+		  ytitle("") ///
+		  title(`title')) ///
+		  (scatter cat mean, ///
+		  msymbol(none) mlabel(meanstr)), ///
+		  ///
+		  xlabel(`range1') xmtick(`range2') legend(off)
+	}
+	
+	frame drop GDATA
+	return matrix M=`M'
+	return scalar N=`n'
+	return scalar NN=`nn'
+
 end
 
 program define rapor
@@ -113,7 +210,7 @@ program define rapor
 	}
 
 	python: proc("`jsonfile'")
-	//display `"`Q_all'"'
+
 	local questions=`"`Q_all'"'
 	
 	// Read production date
@@ -160,7 +257,9 @@ program define rapor
 	file write fh `"</TD></TR></TABLE>"' _n
 
 	foreach q in `questions' {
-		file write fh `"<div class="pagebreak"> </div><H2><FONT face="`fontname'">`q': `:variable label `q'' </FONT></H2>"' _n
+		file write fh `"<div class="pagebreak"> </div>"'
+		python: Macro.setLocal("t",Q.getQuestionTitle("`q'"))
+		file write fh `"<H2><FONT face="`fontname'">`q': `t' </FONT></H2>"' _n
 		
 		// check if there are any observations in `q'!
 		if (strpos(" `Q_text' ", " `q' ")>0) {
@@ -225,6 +324,45 @@ program define rapor
 				file write fh "</TABLE></CENTER>" _n
 			}
 		}
+		
+		if (strpos(" `Q_multi' ", " `q' ")>0) {
+		
+			quietly ds `q'__*
+			local vnames=r(varlist)
+			//quietly count if !missing(`q')
+			
+			if (/*r(N)==*/0) {
+				file write fh `"<FONT face="`fontname'">No observations</FONT>"'
+			}
+			else {
+				local labels `"`Q_c__`q''"'
+				local grmode=`"`c(graphics)'"'
+				set graphics off
+					graph_mselect, vname(`q') ///
+						title(`""') ///
+						lbls(`"`Q_c__`q''"') ///
+						percent 
+					matrix F=r(M)
+					local n=r(NN)
+					graph display, scale(1.00) // workaround for scale
+					graph export "`outfolder'/_`q'.png", as(png) width(`imagewidth') replace
+				set graphics `grmode'
+
+				file write fh `"<CENTER><A href="_`q'.png"><IMG src="_`q'.png" width=`wimage'></A></CENTER>"' _n
+
+				file write fh `"<CENTER><TABLE border="1" cellpadding="6" cellspacing="0" width="`wtable'px" style="border-collapse:collapse;">"' _n
+				file write fh `"<TH bgcolor="orange"><FONT face="`fontname'">Value</FONT></TH><TH bgcolor="orange" width=`wcolumn'><FONT face="`fontname'">Percent</FONT></TH><TH bgcolor="orange" width=`wcolumn'><FONT face="`fontname'">Responses</FONT></TH>"' _n
+				local r=`:rowsof F'
+				forval i=1/`r' {
+					local p=string(F[`i',1],"%25.1f")+"%"
+					gettoken ll labels : labels
+					file write fh `"<TR><TD><FONT face="`fontname'">`ll'</FONT></TD><TD align="right"><FONT face="`fontname'">`p'</FONT></TD><TD align="right"><FONT face="`fontname'">`=F[`i',2]'</FONT></TD></TR>"' _n
+				}
+				file write fh `"<TR><TD colspan=3 align="right"><FONT face="`fontname'"><B>Total responses:`n'</B></FONT></TD></TR>"' _n
+				file write fh "</TABLE></CENTER>" _n
+			}
+		}
+		
 	}
 	file write fh "</BODY></HTML>"
 	file close fh

@@ -13,6 +13,7 @@ class qinfo:
   multi:str = ""
   all:str = ""
   cats={}
+  titles={}
   
   def reset(self):
     self.fname=""
@@ -248,7 +249,7 @@ program define rapor
 	foreach q in `questions' {
 		file write fh `"<div class="pagebreak"> </div>"'
 		python: Macro.setLocal("t",Q.getQuestionTitle("`q'"))
-		file write fh `"<H2><FONT face="`fontname'">`q': `t' </FONT></H2>"' _n
+		file write fh `"<A name="`q'"><H2><FONT face="`fontname'">`q': `t' </FONT></H2>"' _n
 		
 		// check if there are any observations in `q'!
 		if (strpos(" `Q_text' ", " `q' ")>0) {
@@ -374,6 +375,8 @@ program define _writeHeader
 	file write `anything' `"Built with <A href="https://github.com/radyakin/rapor">rapor</A>"' _n
 	file write `anything' `"<BR><BR><BR><BR><BR><BR><BR><BR><BR>"' _n
 	file write `anything' `"</TD></TR></TABLE>"' _n
+	
+	_writeToc `anything'
 end
 
 
@@ -387,5 +390,19 @@ program define _writeLogo
 
 end
 
+program define _writeToc
+    version 18.0
+	syntax anything
+
+	python: Macro.setLocal("allvars",Q.all)
+	
+	file write `anything' `"<H2>Table of contents</H2>"' _n
+	file write `anything' `"<UL>"' _n
+	foreach v in `allvars' {
+		python: Macro.setLocal("qt", Q.titles["`v'"])
+		file write `anything' `"<LI><A href="#`v'">`qt'</A></LI>"' _n
+	}
+	file write `anything' `"</UL>"' _n
+end
 
 // END OF FILE

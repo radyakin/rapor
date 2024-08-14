@@ -180,13 +180,15 @@ program define rapor
 	quietly which fre // requires: FRE
 
 	syntax , ///
-	  outfolder(string)      ///  // destination folder where output will be saved, may not be empty!
-	  [outfile(string)]      ///  // short name of the output file (default is index.html)
-	  exportfile(string)     /// // full name of the export data file
-	  [scheme(string)]       /// // Scheme name (optional, default is currently set scheme.)
-	  [imagewidth(int 1200)] /// // Image width (optional, default is 1200)
-	  [strlimit(int 99)]     /// // Limit on number of open text answers included (default=99).
-	  [minstr(int 0)]        /// // Min length of open text answer to be considered for showing (default=0)
+	  outfolder(string)      ///  // Destination folder where output will be saved, may not be empty!
+	  [outfile(string)]      ///  // Short name of the output file (default is index.html)
+	  exportfile(string)     ///  // Full name of the export data file
+	  [scheme(string)]       ///  // Scheme name (optional, default is currently set scheme.)
+	  [imagewidth(int 1200)] ///  // Image width (optional, default is 1200)
+	  [strlimit(int 99)]     ///  // Limit on number of open text answers included (default=99).
+	  [minstr(int 0)]        ///  // Min length of open text answer to be considered for showing (default=0)
+	  [whitelist(string)]    ///  // Variables' whitelist - only these variables will be analyzed (optional)
+	  [blacklist(string)]    ///  // Variables' blacklist - these variables will not be included into the report (optional)
 	
 	if (`"`outfile'"'=="") local outfile="index.html"
 	
@@ -213,6 +215,11 @@ program define rapor
 	python: proc("`jsonfile'")
 
 	local questions=`"`Q_all'"'
+	
+	// Apply whitelist and blacklist options if specified:
+	if (`"`whitelist'"'!="") local questions `"`: list questions & whitelist'"'
+	if (`"`blacklist'"'!="") local questions `"`: list questions - blacklist'"'
+	python: Q.all="`questions'"
 	
 	// Read production date
 	tempname fr

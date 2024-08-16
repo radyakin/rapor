@@ -174,7 +174,7 @@ program define graph_mselect, rclass
 
 end
 
-program define rapor
+program define rapor, rclass
     
 	version 18.0
 	quietly which fre // requires: FRE
@@ -189,6 +189,8 @@ program define rapor
 	  [minstr(int 0)]        ///  // Min length of open text answer to be considered for showing (default=0)
 	  [whitelist(string)]    ///  // Variables' whitelist - only these variables will be analyzed (optional)
 	  [blacklist(string)]    ///  // Variables' blacklist - these variables will not be included into the report (optional)
+	
+	local result=""
 	
 	if (`"`outfile'"'=="") local outfile="index.html"
 	
@@ -241,6 +243,7 @@ program define rapor
 	local wimage=600
 	local wcolumn=120
 
+	local result `"`result' "`outfile'""'
 	file open fh using "`outfolder'/`outfile'", write text replace
 	file write fh "<HTML>" _n
 	file write fh "<STYLE>" _n
@@ -299,6 +302,7 @@ program define rapor
 				graph export "`outfolder'/_`q'.png", as(png) width(`imagewidth') replace
 				// graph doesn't show both percent and label - see: https://www.statalist.org/forums/forum/general-stata-discussion/general/1129-pie-chart-with-labels-and-percantage-together-on-slice
 				set graphics `grmode'
+				local result `"`result' "_`q'.png""'
 
 				quietly fre `q' if (!missing(`q'))
 				matrix F= r(valid)
@@ -344,6 +348,7 @@ program define rapor
 					graph display, scale(1.00) // workaround for scale
 					graph export "`outfolder'/_`q'.png", as(png) width(`imagewidth') replace
 				set graphics `grmode'
+				local result `"`result' "_`q'.png""'
 
 				file write fh `"<CENTER><A href="_`q'.png"><IMG src="_`q'.png" width=`wimage'></A></CENTER>"' _n
 
@@ -363,6 +368,8 @@ program define rapor
 	}
 	file write fh "</BODY></HTML>"
 	file close fh
+	
+	return local filenames `"`result'"'
 
 end
 

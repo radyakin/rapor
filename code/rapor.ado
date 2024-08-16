@@ -88,7 +88,7 @@ def proc(fname):
   global Q
   Q.reset()
  
-  with open(fname, 'r') as f:
+  with open(fname, 'r', encoding='utf8') as f:
     QUEST = json.load(f)  
 
   Q.fname=QUEST['VariableName']

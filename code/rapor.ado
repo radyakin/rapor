@@ -3,6 +3,7 @@ python:
 import json
 from sfi import Macro
 from dataclasses import dataclass
+import ftplib
 
 @dataclass
 class qinfo:
@@ -233,9 +234,6 @@ program define rapor, rclass
 	use "`outfolder'/_TEMP/`Q_mainfile'.dta"
 	// no longer need temporary content after the data is loaded
 	shell rmdir "`outfolder'/_TEMP" /s /q   
-	/*
-	replace material_walls=4 in 9  // FOR TESTING PURPOSES ONLY
-	replace material_walls_other="Test" in 9 */
 	
 	local fontname="Arial"
 	local fontnamefx="Courier New"
@@ -245,7 +243,10 @@ program define rapor, rclass
 
 	local result `"`result' "`outfile'""'
 	file open fh using "`outfolder'/`outfile'", write text replace
+	
+	file write fh "<!DOCTYPE html"
 	file write fh "<HTML>" _n
+	file write fh `"<HEAD><META http-equiv="Content-Type" content="text/html; charset=utf-8"></HEAD>"' _n
 	file write fh "<STYLE>" _n
 	file write fh "@media print {" _n
 	file write fh "    .pagebreak { page-break-before: always; }" _n

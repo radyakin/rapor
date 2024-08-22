@@ -175,9 +175,38 @@ program define graph_mselect, rclass
 
 end
 
-program define rapor, rclass
+program define rapor
+	version 18.0
+	
+	capture syntax , DEScribe
+	if !_rc {
+		_rapor_describe
+		exit
+	}
+	
+	_rapor `0'
+	
+end
+
+program define _rapor_describe
+    version 18.0
+	
+	local files `"`r(filenames)'"'
+	// di `"`files'"'
+	local n `: word count `files''
+
+	display as text "The report consists of the following {result:`n'} files:"
+	local i=1
+	foreach f in `files' {
+		display as text `"`i'. {result:`f'}"'
+		local i=`i'+1
+	}
+end
+
+program define _rapor, rclass
     
 	version 18.0
+		
 	quietly which fre // requires: FRE
 
 	syntax , ///
@@ -300,7 +329,7 @@ program define rapor, rclass
 				  over(`q') plabel(_all percent , format(%8.1f)) ///
 				  scheme("`scheme'") // Option scale() is not permitted here, see: https://www.stata.com/statalist/archive/2008-05/msg00195.html
 				graph display, scale(1.00) // workaround for scale
-				graph export "`outfolder'/_`q'.png", as(png) width(`imagewidth') replace
+				quietly graph export "`outfolder'/_`q'.png", as(png) width(`imagewidth') replace
 				// graph doesn't show both percent and label - see: https://www.statalist.org/forums/forum/general-stata-discussion/general/1129-pie-chart-with-labels-and-percantage-together-on-slice
 				set graphics `grmode'
 				local result `"`result' "_`q'.png""'
@@ -347,7 +376,7 @@ program define rapor, rclass
 					matrix F=r(M)
 					local n=r(NN)
 					graph display, scale(1.00) // workaround for scale
-					graph export "`outfolder'/_`q'.png", as(png) width(`imagewidth') replace
+					quietly graph export "`outfolder'/_`q'.png", as(png) width(`imagewidth') replace
 				set graphics `grmode'
 				local result `"`result' "_`q'.png""'
 
@@ -371,6 +400,8 @@ program define rapor, rclass
 	file close fh
 	
 	return local filenames `"`result'"'
+	
+	display `"{browse "`outfolder'/`outfile'":Open report in browser}"'
 
 end
 

@@ -10,6 +10,7 @@ class qinfo:
   fname:str = ""
   title:str = ""
   text:str = ""
+  numeric:str = ""
   single:str = ""
   multi:str = ""
   all:str = ""
@@ -20,6 +21,7 @@ class qinfo:
     self.fname=""
     self.title=""
     self.text=""
+    self.numeric=""
     self.single=""
     self.multi=""
     self.all=""
@@ -29,6 +31,7 @@ class qinfo:
   def savetolocals(self, root):
     Macro.setLocal(root+"_single", self.single)
     Macro.setLocal(root+"_text", self.text)
+    Macro.setLocal(root+"_numeric", self.numeric)
     Macro.setLocal(root+"_multi", self.multi)
     Macro.setLocal(root+"_all", self.all)
     Macro.setLocal(root+"_mainfile", self.fname)
@@ -69,7 +72,12 @@ def foundq_text(s):
   global Q
   Q.text=Q.text+" "+s['VariableName']
   foundq(s)
-
+  
+def foundq_numeric(s):
+  global Q
+  Q.numeric=Q.numeric+" "+s['VariableName']
+  foundq(s)
+  
 def traverse(node):
   if (node['Children']!=None):
 	for child in node['Children']:
@@ -81,6 +89,8 @@ def traverse(node):
 	      foundq_multi(child)
 	  if (child['\$type']=="TextQuestion"):
 	    foundq_text(child)
+	  if (child['\$type']=="NumericQuestion"):
+	    foundq_numeric(child)
 	  if (child['\$type']=="Group"):
 		if (child['IsRoster']!=True): ## // not going inside the rosters for now
 		  traverse(child)
@@ -142,11 +152,16 @@ program define graph_mselect, rclass
 		local ii=`n'+1-`i'
 		local vn : word `i' of `vnames'
 		summarize `vn', meanonly
-		matrix `M'[`i',1]=r(mean)*`scalor'
+		
+		local mm=r(mean)
+		if (`"`mm'"'=="") local mm=0
+		else local mm=`mm'*`scalor'
+		
+		matrix `M'[`i',1]=`mm'
 		matrix `M'[`i',2]=r(sum) // TODO: this is good only for 0/1 values, not good for ordered ones.
 		local nn=r(N)
 		
-		frame post GDATA (`ii') (`"`: word `i' of `lbls''"') (`=`r(mean)'*`scalor'') 
+		frame post GDATA (`ii') (`"`: word `i' of `lbls''"') (`mm') 
 		local `valuelabel' `ii' `"`: word `i' of `lbls''"' ``valuelabel''
 		frame GDATA: label define `valuelabel' `ii' `"`: word `i' of `lbls''"', modify
 	}
@@ -202,6 +217,39 @@ program define _rapor_describe
 		local i=`i'+1
 	}
 end
+
+program define _numstat, rclass
+  version 18.0
+  syntax varname
+  
+  quietly summarize `varlist'   // perhaps exclude special values??
+  local vn=r(N)
+  local vmean=r(mean)
+  local vmin=r(min)
+  local vmax=r(max)
+  local vsd=r(sd)
+
+  quietly centile `varlist', c(10 25 50 75 90)
+  local vc10=r(c_1)
+  local vc25=r(c_2)
+  local vc50=r(c_3)
+  local vc75=r(c_4)
+  local vc90=r(c_5)
+  
+  return scalar N=`vn'
+  return scalar mean=`vmean'
+  return scalar min=`vmin'
+  return scalar max=`vmax'
+  return scalar sd=`vsd'
+  
+  return scalar c10=`vc10'
+  return scalar c25=`vc25'
+  return scalar c50=`vc50'
+  return scalar c75=`vc75'
+  return scalar c90=`vc90'
+
+end
+
 
 program define _rapor, rclass
     
@@ -285,11 +333,54 @@ program define _rapor, rclass
 	file write fh "<BODY>" _n
 	
     _writeHeader fh, title(`"`Q_title'"') proddate(`"`proddate'"')
+	
+	local nfmt="%19.2fc"
 
 	foreach q in `questions' {
 		file write fh `"<div class="pagebreak"> </div>"'
 		python: Macro.setLocal("t",Q.getQuestionTitle("`q'"))
 		file write fh `"<A name="`q'"><H2><FONT face="`fontname'">`q': `t' </FONT></H2>"' _n
+		
+		if (strpos(" `Q_numeric' ", " `q' ")>0) {
+			file write fh "<B>Descriptive statistics</B><BR><BR>" _n
+			local cstyle=`" align="center""'
+			_numstat `q'
+			file write fh `"<CENTER><TABLE border="1" cellpadding="6" cellspacing="0" width="`wtable'px" style="border-collapse:collapse;">"' _n
+			file write fh `"<TR><TH `cstyle' bgcolor="orange"><FONT face="`fontname'">Statistic</FONT></TH>"' _n
+			file write fh `"<TD `cstyle'>N</TD>"'
+			file write fh `"<TD `cstyle'>Mean</TD>"'
+			file write fh `"<TD `cstyle'>Minimum</TD>"'
+			file write fh `"<TD `cstyle'>Maximum</TD>"'
+			file write fh `"<TD `cstyle'>Standard deviation</TD></TR>"' _n
+			
+			file write fh `"<TR><TH width=16% bgcolor="orange"><FONT face="`fontname'">Value</FONT></TH>"' _n
+			file write fh `"<TD width=16% `cstyle'><TT>`r(N)'</TT></TD>"'
+			file write fh `"<TD width=17% `cstyle'><TT>`=string(`r(mean)',"`nfmt'")'</TT></TD>"'
+			file write fh `"<TD width=17% `cstyle'><TT>`=string(`r(min)',"`nfmt'")'</TT></TD>"'
+			file write fh `"<TD width=17% `cstyle'><TT>`=string(`r(max)',"`nfmt'")'</TT></TD>"'
+			file write fh `"<TD width=17% `cstyle'><TT>`=string(`r(sd)',"`nfmt'")'</TT></TD></TR>"' _n
+			file write fh `"</TABLE></CENTER>"' _n
+			/*
+			file write fh `"<B>N:</B> <TT>`r(N)'</TT><BR>"' _n
+			file write fh `"<B>Mean:</B> <TT>`=string(`r(mean)',"`nfmt'")'</TT><BR>"' _n
+			file write fh `"<B>Minimum:</B> <TT>`=string(`r(min)',"`nfmt'")'</TT><BR>"' _n
+			file write fh `"<B>Maximum:</B> <TT>`=string(`r(max)',"`nfmt'")'</TT><BR>"' _n
+			file write fh `"<B>Standard deviation:</B> <TT>`=string(`r(sd)',"`nfmt'")'</TT><BR><BR>"' _n
+			*/
+			file write fh `"<BR><B>Percentiles</B><BR><BR>"' _n
+			file write fh `"<CENTER><TABLE border="1" cellpadding="6" cellspacing="0" width="`wtable'px" style="border-collapse:collapse;">"' _n
+			file write fh `"  <TR><TH `cstyle' bgcolor="orange"><FONT face="`fontname'">Percentile</FONT></TH><TD `cstyle'>10</TD><TD `cstyle'>25</TD><TD `cstyle'>50</TD><TD `cstyle'>75</TD><TD `cstyle'>90</TD></TR>"' _n
+			file write fh `"  <TR><TH width=16% `cstyle' bgcolor="orange"><FONT face="`fontname'">Value</FONT></TH>"'
+			file write fh `"  <TD width=16% `cstyle'><TT>`=string(`r(c10)',"`nfmt'")'</TT></TD>"' _n
+			file write fh `"  <TD width=17% `cstyle'><TT>`=string(`r(c25)',"`nfmt'")'</TT></TD>"' _n
+			file write fh `"  <TD width=17% `cstyle'><TT>`=string(`r(c50)',"`nfmt'")'</TT></TD>"' _n
+			file write fh `"  <TD width=17% `cstyle'><TT>`=string(`r(c75)',"`nfmt'")'</TT></TD>"' _n
+			file write fh `"  <TD width=17% `cstyle'><TT>`=string(`r(c90)',"`nfmt'")'</TT></TD>"' _n
+			file write fh `"  </TR>"' _n
+			file write fh `"</TABLE></CENTER>"' _n
+		}
+		
+		
 		
 		// check if there are any observations in `q'!
 		if (strpos(" `Q_text' ", " `q' ")>0) {
@@ -357,12 +448,21 @@ program define _rapor, rclass
 		}
 		
 		if (strpos(" `Q_multi' ", " `q' ")>0) {
-		
+
 			quietly ds `q'__*
 			local vnames=r(varlist)
 			//quietly count if !missing(`q')
 			
-			if (/*r(N)==*/0) {
+			local noobs=1
+			foreach v in `vnames' {
+				quietly count if !missing(`v')
+				if (r(N)>0) {
+					local noobs=0
+					continue, break
+				}
+			}
+			
+			if (`noobs'==1) {
 				file write fh `"<FONT face="`fontname'">No observations</FONT>"'
 			}
 			else {

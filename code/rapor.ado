@@ -342,42 +342,43 @@ program define _rapor, rclass
 		file write fh `"<A name="`q'"><H2><FONT face="`fontname'">`q': `t' </FONT></H2>"' _n
 		
 		if (strpos(" `Q_numeric' ", " `q' ")>0) {
-			file write fh "<B>Descriptive statistics</B><BR><BR>" _n
-			local cstyle=`" align="center""'
-			_numstat `q'
-			file write fh `"<CENTER><TABLE border="1" cellpadding="6" cellspacing="0" width="`wtable'px" style="border-collapse:collapse;">"' _n
-			file write fh `"<TR><TH `cstyle' bgcolor="orange"><FONT face="`fontname'">Statistic</FONT></TH>"' _n
-			file write fh `"<TD `cstyle'>N</TD>"'
-			file write fh `"<TD `cstyle'>Mean</TD>"'
-			file write fh `"<TD `cstyle'>Minimum</TD>"'
-			file write fh `"<TD `cstyle'>Maximum</TD>"'
-			file write fh `"<TD `cstyle'>Standard deviation</TD></TR>"' _n
 			
-			file write fh `"<TR><TH width=16% bgcolor="orange"><FONT face="`fontname'">Value</FONT></TH>"' _n
-			file write fh `"<TD width=16% `cstyle'><TT>`r(N)'</TT></TD>"'
-			file write fh `"<TD width=17% `cstyle'><TT>`=string(`r(mean)',"`nfmt'")'</TT></TD>"'
-			file write fh `"<TD width=17% `cstyle'><TT>`=string(`r(min)',"`nfmt'")'</TT></TD>"'
-			file write fh `"<TD width=17% `cstyle'><TT>`=string(`r(max)',"`nfmt'")'</TT></TD>"'
-			file write fh `"<TD width=17% `cstyle'><TT>`=string(`r(sd)',"`nfmt'")'</TT></TD></TR>"' _n
-			file write fh `"</TABLE></CENTER>"' _n
-			/*
-			file write fh `"<B>N:</B> <TT>`r(N)'</TT><BR>"' _n
-			file write fh `"<B>Mean:</B> <TT>`=string(`r(mean)',"`nfmt'")'</TT><BR>"' _n
-			file write fh `"<B>Minimum:</B> <TT>`=string(`r(min)',"`nfmt'")'</TT><BR>"' _n
-			file write fh `"<B>Maximum:</B> <TT>`=string(`r(max)',"`nfmt'")'</TT><BR>"' _n
-			file write fh `"<B>Standard deviation:</B> <TT>`=string(`r(sd)',"`nfmt'")'</TT><BR><BR>"' _n
-			*/
-			file write fh `"<BR><B>Percentiles</B><BR><BR>"' _n
-			file write fh `"<CENTER><TABLE border="1" cellpadding="6" cellspacing="0" width="`wtable'px" style="border-collapse:collapse;">"' _n
-			file write fh `"  <TR><TH `cstyle' bgcolor="orange"><FONT face="`fontname'">Percentile</FONT></TH><TD `cstyle'>10</TD><TD `cstyle'>25</TD><TD `cstyle'>50</TD><TD `cstyle'>75</TD><TD `cstyle'>90</TD></TR>"' _n
-			file write fh `"  <TR><TH width=16% `cstyle' bgcolor="orange"><FONT face="`fontname'">Value</FONT></TH>"'
-			file write fh `"  <TD width=16% `cstyle'><TT>`=string(`r(c10)',"`nfmt'")'</TT></TD>"' _n
-			file write fh `"  <TD width=17% `cstyle'><TT>`=string(`r(c25)',"`nfmt'")'</TT></TD>"' _n
-			file write fh `"  <TD width=17% `cstyle'><TT>`=string(`r(c50)',"`nfmt'")'</TT></TD>"' _n
-			file write fh `"  <TD width=17% `cstyle'><TT>`=string(`r(c75)',"`nfmt'")'</TT></TD>"' _n
-			file write fh `"  <TD width=17% `cstyle'><TT>`=string(`r(c90)',"`nfmt'")'</TT></TD>"' _n
-			file write fh `"  </TR>"' _n
-			file write fh `"</TABLE></CENTER>"' _n
+			_numstat `q'
+			if (r(N)>0) {
+			
+				file write fh "<B>Descriptive statistics</B><BR><BR>" _n
+				local cstyle=`" align="center""'
+				file write fh `"<CENTER><TABLE border="1" cellpadding="6" cellspacing="0" width="`wtable'px" style="border-collapse:collapse;">"' _n
+				file write fh `"<TR><TH `cstyle' bgcolor="orange"><FONT face="`fontname'">Statistic</FONT></TH>"' _n
+				file write fh `"<TD `cstyle'>N</TD>"'
+				file write fh `"<TD `cstyle'>Mean</TD>"'
+				file write fh `"<TD `cstyle'>Minimum</TD>"'
+				file write fh `"<TD `cstyle'>Maximum</TD>"'
+				file write fh `"<TD `cstyle'>Standard deviation</TD></TR>"' _n
+				
+				file write fh `"<TR><TH width=16% bgcolor="orange"><FONT face="`fontname'">Value</FONT></TH>"' _n
+				file write fh `"<TD width=16% `cstyle'><TT>`r(N)'</TT></TD>"'
+				file write fh `"<TD width=17% `cstyle'><TT>`=string(`r(mean)',"`nfmt'")'</TT></TD>"'
+				file write fh `"<TD width=17% `cstyle'><TT>`=string(`r(min)',"`nfmt'")'</TT></TD>"'
+				file write fh `"<TD width=17% `cstyle'><TT>`=string(`r(max)',"`nfmt'")'</TT></TD>"'
+				file write fh `"<TD width=17% `cstyle'><TT>`=string(`r(sd)',"`nfmt'")'</TT></TD></TR>"' _n
+				file write fh `"</TABLE></CENTER>"' _n
+
+				file write fh `"<BR><B>Percentiles</B><BR><BR>"' _n
+				file write fh `"<CENTER><TABLE border="1" cellpadding="6" cellspacing="0" width="`wtable'px" style="border-collapse:collapse;">"' _n
+				file write fh `"  <TR><TH `cstyle' bgcolor="orange"><FONT face="`fontname'">Percentile</FONT></TH><TD `cstyle'>10</TD><TD `cstyle'>25</TD><TD `cstyle'>50</TD><TD `cstyle'>75</TD><TD `cstyle'>90</TD></TR>"' _n
+				file write fh `"  <TR><TH width=16% `cstyle' bgcolor="orange"><FONT face="`fontname'">Value</FONT></TH>"'
+				file write fh `"  <TD width=16% `cstyle'><TT>`=string(`r(c10)',"`nfmt'")'</TT></TD>"' _n
+				file write fh `"  <TD width=17% `cstyle'><TT>`=string(`r(c25)',"`nfmt'")'</TT></TD>"' _n
+				file write fh `"  <TD width=17% `cstyle'><TT>`=string(`r(c50)',"`nfmt'")'</TT></TD>"' _n
+				file write fh `"  <TD width=17% `cstyle'><TT>`=string(`r(c75)',"`nfmt'")'</TT></TD>"' _n
+				file write fh `"  <TD width=17% `cstyle'><TT>`=string(`r(c90)',"`nfmt'")'</TT></TD>"' _n
+				file write fh `"  </TR>"' _n
+				file write fh `"</TABLE></CENTER>"' _n
+			}
+			else {
+				file write fh `"<FONT face="`fontname'">No observations</FONT>"'
+			}
 		}
 		
 		

@@ -12,7 +12,7 @@ def setstyle():
     Macro.setLocal("wimage","600")
     Macro.setLocal("wcolumn","120")
     Macro.setLocal("nfmt","%19.2fc")
-    Macro.setLocal("pfmt","%25.4f")
+    Macro.setLocal("pfmt","%25.1f")
     Macro.setLocal("hcolor","orange")
 
 
@@ -27,6 +27,8 @@ class qinfo:
   all:str = ""
   cats={}
   titles={}
+  levels={}
+  files={}
   
   def reset(self):
     self.fname=""
@@ -38,6 +40,8 @@ class qinfo:
     self.all=""
     self.cats={}
     self.titles={}
+    self.levels={}
+    self.files={}
 
   def savetolocals(self, root):
     Macro.setLocal(root+"_single", self.single)
@@ -55,56 +59,91 @@ class qinfo:
   def getQuestionTitle(self, q):
     return(self.titles[q])
 
+  def getQuestionLevel(self, q):
+    return(self.levels[q])
+
+  def getFrameForQuestion(self, q):
+    p=self.levels[q]
+    Z=p.split('/')
+    zl=len(Z)
+    fil=Z[zl-1]
+    fra=self.files[fil]
+    return(fra)
+
+  def alllevs(self):
+    t={}
+    for l in self.levels:
+      p=self.levels[l]
+      if p not in t:
+        Z=p.split('/')
+        zl=len(Z)
+        t[p]=Z[zl-1]
+    i=1
+    for q in t:
+      f=t[q]
+      print(str(i)+" "+f)
+      self.files[f]=i # // this is the frame number
+      i=i+1
+
+  def getAllFiles(self):
+    s=""
+    for f in self.files:
+      s=s+" "+f
+    return(s.strip())
+
 Q=qinfo()
 
-def foundq(s):
+def foundq(s, level):
   global Q
   vn=s['VariableName']
   qt=s['QuestionText']
   Q.all=Q.all + " " + vn
   Q.titles[vn]=qt
-  print(" " + vn + ":" + qt)
+  print(" "+level+" {" + vn + "}:" + qt)
+  Q.levels[vn]=level
 
-def foundq_single(s):
+def foundq_single(s, level):
   global Q
   Q.single=Q.single+" "+s['VariableName']
-  foundq(s)
+  foundq(s, level)
 
-def foundq_multi(s):
+def foundq_multi(s, level):
   global Q
   vn=s['VariableName']
   Q.multi=Q.multi+" "+vn
   Q.cats[vn]=""
   for a in s['Answers']:
     Q.cats[vn]=Q.cats[vn] + " \"" + a['AnswerText']+"\""
-  foundq(s)
+  foundq(s, level)
   
-def foundq_text(s):
+def foundq_text(s, level):
   global Q
   Q.text=Q.text+" "+s['VariableName']
-  foundq(s)
+  foundq(s, level)
   
-def foundq_numeric(s):
+def foundq_numeric(s, level):
   global Q
   Q.numeric=Q.numeric+" "+s['VariableName']
-  foundq(s)
+  foundq(s, level)
   
-def traverse(node):
+def traverse(node, level):
   if (node['Children']!=None):
 	for child in node['Children']:
 	  if (child['\$type']=="SingleQuestion"):
 		if (('LinkedToRosterId' not in child) and ('LinkedToQuestionId' not in child)):
-		  foundq_single(child)
+		  foundq_single(child, level)
 	  if (child['\$type']=="MultyOptionsQuestion"):
 	    if ('CategoriesId' not in child):
-	      foundq_multi(child)
+	      foundq_multi(child, level)
 	  if (child['\$type']=="TextQuestion"):
-	    foundq_text(child)
+	    foundq_text(child, level)
 	  if (child['\$type']=="NumericQuestion"):
-	    foundq_numeric(child)
+	    foundq_numeric(child, level)
 	  if (child['\$type']=="Group"):
 		if (child['IsRoster']!=True): ## // not going inside the rosters for now
-		  traverse(child)
+		  traverse(child, level)
+		else:
+		  traverse(child, level+"/"+child['VariableName'])
 
 def proc(fname):
   global Q
@@ -119,9 +158,10 @@ def proc(fname):
   SECTIONS=QUEST['Children']
   for oneSection in SECTIONS:
     # // print("======"+oneSection['Title']+"======")
-    traverse(oneSection)
+    traverse(oneSection,Q.fname)
   Q.savetolocals("Q")
-  # // return(Q.all)
+  Q.alllevs()
+
 end
 
 
@@ -261,15 +301,22 @@ program define _numstat, rclass
 
 end
 
-
-program define _examine_q
-
+program define _loadAllData
     version 18.0
-	
-
+    syntax , datafolder(string)
+    local i=1
+    python : Macro.setLocal("allfiles",Q.getAllFiles())
+    display `"`allfiles'"'
+    foreach f in `allfiles' {
+		local fname="data_`i'"
+		display as text `"Loading {result:"`f'.dta"} to frame {result:`fname'}..."' _continue
+		frame create `fname'
+		frame `fname': use `"`datafolder'/`f'.dta"'
+		display as text " ok"
+		local i=`i'+1
+	}
+	frame dir
 end
-
-
 
 program define _getProdDate, rclass
     version 18.0
@@ -343,6 +390,7 @@ program define _rapor, rclass
 	}
 
 	python: proc("`jsonfile'")
+	_loadAllData, datafolder("`outfolder'/_TEMP")
 
 	_getProdDate, file("`outfolder'/_TEMP/export__readme.txt")
 	local proddate `r(proddate)'
@@ -350,7 +398,7 @@ program define _rapor, rclass
 	use "`outfolder'/_TEMP/`Q_mainfile'.dta"
 	// no longer need temporary content after the data is loaded
 	shell rmdir "`outfolder'/_TEMP" /s /q   
-	
+	// This deletes the temporary folder with any files
 	// -------------------------------------------------------------------------
 
 	_qlist, whitelist(`"`whitelist'"') blacklist(`"`blacklist'"')
@@ -365,6 +413,9 @@ program define _rapor, rclass
 	_writeTitlePage fh, title(`"`Q_title'"') proddate(`"`proddate'"')
 
 	foreach q in `questions' {
+		display as result "`q'"
+		python: Macro.setLocal("qframe", str(Q.getFrameForQuestion("`q'")))
+		frame change data_`qframe'
 		
 		_writeQuestionHeader fh, question(`"`q'"')
 		

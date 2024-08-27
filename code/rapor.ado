@@ -5,6 +5,17 @@ from sfi import Macro
 from dataclasses import dataclass
 import ftplib
 
+def setstyle():
+    Macro.setLocal("fontname","Arial")
+    Macro.setLocal("fontnamefx","Courier New")
+    Macro.setLocal("wtable","800")
+    Macro.setLocal("wimage","600")
+    Macro.setLocal("wcolumn","120")
+    Macro.setLocal("nfmt","%19.2fc")
+    Macro.setLocal("pfmt","%25.4f")
+    Macro.setLocal("hcolor","orange")
+
+
 @dataclass
 class qinfo:
   fname:str = ""
@@ -251,6 +262,43 @@ program define _numstat, rclass
 end
 
 
+program define _examine_q
+
+    version 18.0
+	
+
+end
+
+
+
+program define _getProdDate, rclass
+    version 18.0
+	syntax , file(string)
+
+	// Read production date
+	tempname fr
+	file open `fr' using `"`file'"', read text
+	  file read `fr' oneline
+	file close `fr'
+	local proddate = substr(`"`oneline'"', strpos(`"`oneline'"', ", ") + 2, .)
+	return local proddate = `"`proddate'"'
+end
+
+program define _qlist, rclass
+    version 18.0
+	
+	syntax , [whitelist(string)] [blacklist(string)]
+	
+	// Narrow down the questions list
+	// local questions=`"`Q_all'"'
+	python: Macro.setLocal("questions", Q.all)
+	// Apply whitelist and blacklist options if specified:
+	if (`"`whitelist'"'!="") local questions `"`: list questions & whitelist'"'
+	if (`"`blacklist'"'!="") local questions `"`: list questions - blacklist'"'
+	python: Q.all="`questions'" // needed for TOC
+	return local questions = `"`questions'"'
+end
+
 program define _rapor, rclass
     
 	version 18.0
@@ -277,6 +325,8 @@ program define _rapor, rclass
 		error 601
 	}
 	
+	
+	// -------------------------------------------------------------------------
 	local pwd `c(pwd)'
 	
 	quietly {
@@ -294,52 +344,29 @@ program define _rapor, rclass
 
 	python: proc("`jsonfile'")
 
-	local questions=`"`Q_all'"'
-	
-	// Apply whitelist and blacklist options if specified:
-	if (`"`whitelist'"'!="") local questions `"`: list questions & whitelist'"'
-	if (`"`blacklist'"'!="") local questions `"`: list questions - blacklist'"'
-	python: Q.all="`questions'"
-	
-	// Read production date
-	tempname fr
-	file open `fr' using "`outfolder'/_TEMP/export__readme.txt", read text
-	  file read `fr' oneline
-	file close `fr'
-	local proddate=substr(`"`oneline'"',strpos(`"`oneline'"',", ")+2,.)
+	_getProdDate, file("`outfolder'/_TEMP/export__readme.txt")
+	local proddate `r(proddate)'
 	
 	use "`outfolder'/_TEMP/`Q_mainfile'.dta"
 	// no longer need temporary content after the data is loaded
 	shell rmdir "`outfolder'/_TEMP" /s /q   
 	
-	local fontname="Arial"
-	local fontnamefx="Courier New"
-	local wtable=800
-	local wimage=600
-	local wcolumn=120
+	// -------------------------------------------------------------------------
 
+	_qlist, whitelist(`"`whitelist'"') blacklist(`"`blacklist'"')
+	local questions `r(questions)'
+
+	python: setstyle()
+	
 	local result `"`result' "`outfile'""'
 	file open fh using "`outfolder'/`outfile'", write text replace
-	
-	file write fh "<!DOCTYPE html"
-	file write fh "<HTML>" _n
-	file write fh `"<HEAD><META http-equiv="Content-Type" content="text/html; charset=utf-8"></HEAD>"' _n
-	file write fh "<STYLE>" _n
-	file write fh "@media print {" _n
-	file write fh "    .pagebreak { page-break-before: always; }" _n
-	file write fh "}"
-	file write fh "</STYLE>" _n
-	
-	file write fh "<BODY>" _n
-	
-    _writeHeader fh, title(`"`Q_title'"') proddate(`"`proddate'"')
-	
-	local nfmt="%19.2fc"
+
+	_writeFileHeader fh
+	_writeTitlePage fh, title(`"`Q_title'"') proddate(`"`proddate'"')
 
 	foreach q in `questions' {
-		file write fh `"<div class="pagebreak"> </div>"'
-		python: Macro.setLocal("t",Q.getQuestionTitle("`q'"))
-		file write fh `"<A name="`q'"><H2><FONT face="`fontname'">`q': `t' </FONT></H2>"' _n
+		
+		_writeQuestionHeader fh, question(`"`q'"')
 		
 		if (strpos(" `Q_numeric' ", " `q' ")>0) {
 			
@@ -349,14 +376,14 @@ program define _rapor, rclass
 				file write fh "<B>Descriptive statistics</B><BR><BR>" _n
 				local cstyle=`" align="center""'
 				file write fh `"<CENTER><TABLE border="1" cellpadding="6" cellspacing="0" width="`wtable'px" style="border-collapse:collapse;">"' _n
-				file write fh `"<TR><TH `cstyle' bgcolor="orange"><FONT face="`fontname'">Statistic</FONT></TH>"' _n
+				file write fh `"<TR><TH `cstyle' bgcolor="`hcolor'"><FONT face="`fontname'">Statistic</FONT></TH>"' _n
 				file write fh `"<TD `cstyle'>N</TD>"'
 				file write fh `"<TD `cstyle'>Mean</TD>"'
 				file write fh `"<TD `cstyle'>Minimum</TD>"'
 				file write fh `"<TD `cstyle'>Maximum</TD>"'
 				file write fh `"<TD `cstyle'>Standard deviation</TD></TR>"' _n
 				
-				file write fh `"<TR><TH width=16% bgcolor="orange"><FONT face="`fontname'">Value</FONT></TH>"' _n
+				file write fh `"<TR><TH width=16% bgcolor="`hcolor'"><FONT face="`fontname'">Value</FONT></TH>"' _n
 				file write fh `"<TD width=16% `cstyle'><TT>`r(N)'</TT></TD>"'
 				file write fh `"<TD width=17% `cstyle'><TT>`=string(`r(mean)',"`nfmt'")'</TT></TD>"'
 				file write fh `"<TD width=17% `cstyle'><TT>`=string(`r(min)',"`nfmt'")'</TT></TD>"'
@@ -366,8 +393,8 @@ program define _rapor, rclass
 
 				file write fh `"<BR><B>Percentiles</B><BR><BR>"' _n
 				file write fh `"<CENTER><TABLE border="1" cellpadding="6" cellspacing="0" width="`wtable'px" style="border-collapse:collapse;">"' _n
-				file write fh `"  <TR><TH `cstyle' bgcolor="orange"><FONT face="`fontname'">Percentile</FONT></TH><TD `cstyle'>10</TD><TD `cstyle'>25</TD><TD `cstyle'>50</TD><TD `cstyle'>75</TD><TD `cstyle'>90</TD></TR>"' _n
-				file write fh `"  <TR><TH width=16% `cstyle' bgcolor="orange"><FONT face="`fontname'">Value</FONT></TH>"'
+				file write fh `"  <TR><TH `cstyle' bgcolor="`hcolor'"><FONT face="`fontname'">Percentile</FONT></TH><TD `cstyle'>10</TD><TD `cstyle'>25</TD><TD `cstyle'>50</TD><TD `cstyle'>75</TD><TD `cstyle'>90</TD></TR>"' _n
+				file write fh `"  <TR><TH width=16% `cstyle' bgcolor="`hcolor'"><FONT face="`fontname'">Value</FONT></TH>"'
 				file write fh `"  <TD width=16% `cstyle'><TT>`=string(`r(c10)',"`nfmt'")'</TT></TD>"' _n
 				file write fh `"  <TD width=17% `cstyle'><TT>`=string(`r(c25)',"`nfmt'")'</TT></TD>"' _n
 				file write fh `"  <TD width=17% `cstyle'><TT>`=string(`r(c50)',"`nfmt'")'</TT></TD>"' _n
@@ -380,10 +407,6 @@ program define _rapor, rclass
 				file write fh `"<FONT face="`fontname'">No observations</FONT>"'
 			}
 		}
-		
-		
-		
-		// check if there are any observations in `q'!
 		if (strpos(" `Q_text' ", " `q' ")>0) {
 			// Process text field
 			quietly count if (!missing(`q') & (`q'!="##N/A##") & (strtrim(`q')!="") & (strlen(strtrim(`q'))>`minstr'))
@@ -433,10 +456,10 @@ program define _rapor, rclass
 
 				file write fh `"<CENTER><A href="_`q'.png"><IMG src="_`q'.png" width=`wimage'></A></CENTER>"' _n
 				file write fh `"<CENTER><TABLE border="1" cellpadding="6" cellspacing="0" width="`wtable'px" style="border-collapse:collapse;">"' _n
-				file write fh `"<TH bgcolor="orange"><FONT face="`fontname'">Value</FONT></TH><TH bgcolor="orange" width=`wcolumn'><FONT face="`fontname'">Percent</FONT></TH><TH bgcolor="orange" width=`wcolumn'><FONT face="`fontname'">Responses</FONT></TH>"' _n
+				file write fh `"<TH bgcolor="`hcolor'"><FONT face="`fontname'">Value</FONT></TH><TH bgcolor="`hcolor'" width=`wcolumn'><FONT face="`fontname'">Percent</FONT></TH><TH bgcolor="`hcolor'" width=`wcolumn'><FONT face="`fontname'">Responses</FONT></TH>"' _n
 				local r=`:rowsof F'
 				forval i=1/`r' {
-					local p=string(F[`i',1]/`n'*100.0,"%25.1f")+"%"
+					local p=string(F[`i',1]/`n'*100.0,"`pfmt'")+"%"
 					//local ll `"`:word `i' of `labels''"' // works unexpectedly with unbalanced quotes
 					gettoken ll labels : labels
 					local ppp=strpos(`"`ll'"', " ")
@@ -447,7 +470,6 @@ program define _rapor, rclass
 				file write fh "</TABLE></CENTER>" _n
 			}
 		}
-		
 		if (strpos(" `Q_multi' ", " `q' ")>0) {
 
 			quietly ds `q'__*
@@ -473,6 +495,7 @@ program define _rapor, rclass
 					graph_mselect, vname(`q') ///
 						title(`""') ///
 						lbls(`"`Q_c__`q''"') ///
+						format("`pfmt'") ///
 						percent 
 					matrix F=r(M)
 					local n=r(NN)
@@ -484,10 +507,10 @@ program define _rapor, rclass
 				file write fh `"<CENTER><A href="_`q'.png"><IMG src="_`q'.png" width=`wimage'></A></CENTER>"' _n
 
 				file write fh `"<CENTER><TABLE border="1" cellpadding="6" cellspacing="0" width="`wtable'px" style="border-collapse:collapse;">"' _n
-				file write fh `"<TH bgcolor="orange"><FONT face="`fontname'">Value</FONT></TH><TH bgcolor="orange" width=`wcolumn'><FONT face="`fontname'">Percent</FONT></TH><TH bgcolor="orange" width=`wcolumn'><FONT face="`fontname'">Responses</FONT></TH>"' _n
+				file write fh `"<TH bgcolor="`hcolor'"><FONT face="`fontname'">Value</FONT></TH><TH bgcolor="`hcolor'" width=`wcolumn'><FONT face="`fontname'">Percent</FONT></TH><TH bgcolor="`hcolor'" width=`wcolumn'><FONT face="`fontname'">Responses</FONT></TH>"' _n
 				local r=`:rowsof F'
 				forval i=1/`r' {
-					local p=string(F[`i',1],"%25.1f")+"%"
+					local p=string(F[`i',1],"`pfmt'")+"%"
 					gettoken ll labels : labels
 					file write fh `"<TR><TD><FONT face="`fontname'">`ll'</FONT></TD><TD align="right"><FONT face="`fontname'">`p'</FONT></TD><TD align="right"><FONT face="`fontname'">`=F[`i',2]'</FONT></TD></TR>"' _n
 				}
@@ -506,7 +529,20 @@ program define _rapor, rclass
 
 end
 
-program define _writeHeader
+program define _writeFileHeader
+    version 18.0
+    syntax anything
+	file write `anything' "<!DOCTYPE html"
+	file write `anything' "<HTML>" _n
+	file write `anything' `"<HEAD><META http-equiv="Content-Type" content="text/html; charset=utf-8"></HEAD>"' _n
+	file write `anything' "<STYLE>" _n
+	file write `anything' "@media print {" _n
+	file write `anything' "    .pagebreak { page-break-before: always; }" _n
+	file write `anything' "}"
+	file write `anything' "</STYLE>" _n
+end
+
+program define _writeTitlePage
     version 18.0
 	syntax anything, title(string) proddate(string)
 	
@@ -550,6 +586,16 @@ program define _writeToc
 		file write `anything' `"<LI><A href="#`v'">`qt'</A></LI>"' _n
 	}
 	file write `anything' `"</UL>"' _n
+end
+
+
+program define _writeQuestionHeader
+    version 18.0
+    syntax anything, question(string)
+	
+	python: Macro.setLocal("t",Q.getQuestionTitle("`question'"))
+	file write `anything' `"<div class="pagebreak"> </div>"' _n
+	file write `anything' `"<A name="`question'"><H2><FONT face="`fontname'">`question': `t' </FONT></H2>"' _n
 end
 
 // END OF FILE

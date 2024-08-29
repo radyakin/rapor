@@ -200,17 +200,23 @@ program define graph_mselect, rclass
 	local nn=.
 
 	forval i=1/`n' {
+		
 		local ii=`n'+1-`i'
 		local vn : word `i' of `vnames'
 		summarize `vn', meanonly
-		
-		local mm=r(mean)
-		if (`"`mm'"'=="") local mm=0
-		else local mm=`mm'*`scalor'
-		
-		matrix `M'[`i',1]=`mm'
-		matrix `M'[`i',2]=r(sum) // TODO: this is good only for 0/1 values, not good for ordered ones.
 		local nn=r(N)
+		
+		if (`nn'==0) {
+			// No observations:
+			matrix `M'[`i',1]=0
+			matrix `M'[`i',2]=0
+		}
+		else {
+			quietly count if `vn'>0 & !missing(`vn')
+			matrix `M'[`i',2]=r(N)
+			local mm=r(N)/`nn'*`scalor'
+			matrix `M'[`i',1]=`mm'
+		}
 		
 		frame post GDATA (`ii') (`"`: word `i' of `lbls''"') (`mm') 
 		local `valuelabel' `ii' `"`: word `i' of `lbls''"' ``valuelabel''

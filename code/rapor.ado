@@ -1,7 +1,7 @@
 python:
 
 import json
-from sfi import Macro
+from sfi import Macro, Data
 from dataclasses import dataclass
 import ftplib
 
@@ -13,8 +13,15 @@ def setstyle():
     Macro.setLocal("wcolumn","120")
     Macro.setLocal("nfmt","%19.2fc")
     Macro.setLocal("pfmt","%25.1f")
-    Macro.setLocal("hcolor","orange")
+    Macro.setLocal("hcolor","#FFD700")
+    Macro.setLocal("bcolor","#005BBB")
 
+def setLanguage(lng):
+    # // Current frame should contain translations
+    for i in range(Data.getObsTotal()):
+      left=Data.get("value",i)[0][0]
+      right=Data.get("lng_"+lng,i)[0][0]
+      Macro.setLocal(left,right)
 
 @dataclass
 class qinfo:
@@ -334,6 +341,7 @@ program define _getProdDate, rclass
 	  file read `fr' oneline
 	file close `fr'
 	local proddate = substr(`"`oneline'"', strpos(`"`oneline'"', ", ") + 2, .)
+	local proddate = string(date("`proddate'","MDY"),"%tdCCYY-NN-DD")
 	return local proddate = `"`proddate'"'
 end
 
@@ -352,6 +360,19 @@ program define _qlist, rclass
 	return local questions = `"`questions'"'
 end
 
+program define loadlng
+    version 18.0
+    clear
+    capture frame create rapor_lng
+    frame rapor_lng {
+      findfile "rapor_translation.csv"
+      import delimited using "`r(fn)'", clear varnames(1)
+      python: setLanguage("en")
+    }
+    // https://www.deepl.com/en/translator
+    // https://translate.google.com/
+end
+
 program define _rapor, rclass
     
 	version 18.0
@@ -368,6 +389,12 @@ program define _rapor, rclass
 	  [minstr(int 0)]        ///  // Min length of open text answer to be considered for showing (default=0)
 	  [whitelist(string)]    ///  // Variables' whitelist - only these variables will be analyzed (optional)
 	  [blacklist(string)]    ///  // Variables' blacklist - these variables will not be included into the report (optional)
+	  [language(string)]     ///  // 2-letter language code for string literals in the report (optional, English [en] will be used by default)
+	
+	if (`"`language'"'=="") local language="en"
+	
+	loadlng
+	frame rapor_lng : python: setLanguage("`language'")
 	
 	local result=""
 	
@@ -416,7 +443,7 @@ program define _rapor, rclass
 	file open fh using "`outfolder'/`outfile'", write text replace
 
 	_writeFileHeader fh
-	_writeTitlePage fh, title(`"`Q_title'"') proddate(`"`proddate'"')
+	_writeTitlePage fh, title(`"`Q_title'"') proddate(`"`proddate'"') language("`language'")
 
 	foreach q in `questions' {
 		display as result "`q'"
@@ -430,17 +457,17 @@ program define _rapor, rclass
 			_numstat `q'
 			if (r(N)>0) {
 			
-				file write fh "<B>Descriptive statistics</B><BR><BR>" _n
+				file write fh "<B>`txt_descriptive_statistics'</B><BR><BR>" _n
 				local cstyle=`" align="center""'
 				file write fh `"<CENTER><TABLE border="1" cellpadding="6" cellspacing="0" width="`wtable'px" style="border-collapse:collapse;">"' _n
-				file write fh `"<TR><TH `cstyle' bgcolor="`hcolor'"><FONT face="`fontname'">Statistic</FONT></TH>"' _n
-				file write fh `"<TD `cstyle'>N</TD>"'
-				file write fh `"<TD `cstyle'>Mean</TD>"'
-				file write fh `"<TD `cstyle'>Minimum</TD>"'
-				file write fh `"<TD `cstyle'>Maximum</TD>"'
-				file write fh `"<TD `cstyle'>Standard deviation</TD></TR>"' _n
+				file write fh `"<TR><TH `cstyle' bgcolor="`hcolor'"><FONT face="`fontname'">`txt_statistic'</FONT></TH>"' _n
+				file write fh `"<TD `cstyle'>`txt_n'</TD>"'
+				file write fh `"<TD `cstyle'>`txt_mean'</TD>"'
+				file write fh `"<TD `cstyle'>`txt_minimum'</TD>"'
+				file write fh `"<TD `cstyle'>`txt_maximum'</TD>"'
+				file write fh `"<TD `cstyle'>`txt_standard_deviation'</TD></TR>"' _n
 				
-				file write fh `"<TR><TH width=16% bgcolor="`hcolor'"><FONT face="`fontname'">Value</FONT></TH>"' _n
+				file write fh `"<TR><TH width=16% bgcolor="`hcolor'"><FONT face="`fontname'">`txt_value'</FONT></TH>"' _n
 				file write fh `"<TD width=16% `cstyle'><TT>`r(N)'</TT></TD>"'
 				file write fh `"<TD width=17% `cstyle'><TT>`=string(`r(mean)',"`nfmt'")'</TT></TD>"'
 				file write fh `"<TD width=17% `cstyle'><TT>`=string(`r(min)',"`nfmt'")'</TT></TD>"'
@@ -448,10 +475,10 @@ program define _rapor, rclass
 				file write fh `"<TD width=17% `cstyle'><TT>`=string(`r(sd)',"`nfmt'")'</TT></TD></TR>"' _n
 				file write fh `"</TABLE></CENTER>"' _n
 
-				file write fh `"<BR><B>Percentiles</B><BR><BR>"' _n
+				file write fh `"<BR><B>`txt_percentiles'</B><BR><BR>"' _n
 				file write fh `"<CENTER><TABLE border="1" cellpadding="6" cellspacing="0" width="`wtable'px" style="border-collapse:collapse;">"' _n
-				file write fh `"  <TR><TH `cstyle' bgcolor="`hcolor'"><FONT face="`fontname'">Percentile</FONT></TH><TD `cstyle'>10</TD><TD `cstyle'>25</TD><TD `cstyle'>50</TD><TD `cstyle'>75</TD><TD `cstyle'>90</TD></TR>"' _n
-				file write fh `"  <TR><TH width=16% `cstyle' bgcolor="`hcolor'"><FONT face="`fontname'">Value</FONT></TH>"'
+				file write fh `"  <TR><TH `cstyle' bgcolor="`hcolor'"><FONT face="`fontname'">`txt_percentile'</FONT></TH><TD `cstyle'>10</TD><TD `cstyle'>25</TD><TD `cstyle'>50</TD><TD `cstyle'>75</TD><TD `cstyle'>90</TD></TR>"' _n
+				file write fh `"  <TR><TH width=16% `cstyle' bgcolor="`hcolor'"><FONT face="`fontname'">`txt_value'</FONT></TH>"'
 				file write fh `"  <TD width=16% `cstyle'><TT>`=string(`r(c10)',"`nfmt'")'</TT></TD>"' _n
 				file write fh `"  <TD width=17% `cstyle'><TT>`=string(`r(c25)',"`nfmt'")'</TT></TD>"' _n
 				file write fh `"  <TD width=17% `cstyle'><TT>`=string(`r(c50)',"`nfmt'")'</TT></TD>"' _n
@@ -461,18 +488,18 @@ program define _rapor, rclass
 				file write fh `"</TABLE></CENTER>"' _n
 			}
 			else {
-				file write fh `"<FONT face="`fontname'">No observations</FONT>"'
+				file write fh `"<FONT face="`fontname'">`txt_no_observations'</FONT>"'
 			}
 		}
 		if (strpos(" `Q_text' ", " `q' ")>0) {
 			// Process text field
 			quietly count if (!missing(`q') & (`q'!="##N/A##") & (strtrim(`q')!="") & (strlen(strtrim(`q'))>`minstr'))
 			if (r(N)==0) {
-				file write fh `"<FONT face="`fontname'">No observations</FONT>"'
+				file write fh `"<FONT face="`fontname'">`txt_no_observations'</FONT>"'
 			}
 			else {
 				file write fh `"<CENTER><TABLE border="0" cellpadding="6" cellspacing="0" width="`wtable'px" style="border-collapse:collapse;">"'
-				file write fh `"<TR><TH width=`wcolumn' align=left>ResponseID</TH><TH align=left>Response</TH></TR>"'
+				file write fh `"<TR><TH width=`wcolumn' align=left>`txt_observation_id'</TH><TH align=left>`txt_response'</TH></TR>"'
 				
 				local written=0
 				forval i=1/`=_N' {
@@ -513,7 +540,7 @@ program define _rapor, rclass
 
 				file write fh `"<CENTER><A href="_`q'.png"><IMG src="_`q'.png" width=`wimage'></A></CENTER>"' _n
 				file write fh `"<CENTER><TABLE border="1" cellpadding="6" cellspacing="0" width="`wtable'px" style="border-collapse:collapse;">"' _n
-				file write fh `"<TH bgcolor="`hcolor'"><FONT face="`fontname'">Value</FONT></TH><TH colspan=2 bgcolor="`hcolor'"><FONT face="`fontname'">Percent</FONT></TH><TH bgcolor="`hcolor'" width=`wcolumn'><FONT face="`fontname'">Responses</FONT></TH>"' _n
+				file write fh `"<TH bgcolor="`hcolor'"><FONT face="`fontname'">`txt_value'</FONT></TH><TH colspan=2 bgcolor="`hcolor'"><FONT face="`fontname'">`txt_percent'</FONT></TH><TH bgcolor="`hcolor'" width=`wcolumn'><FONT face="`fontname'">`txt_responses'</FONT></TH>"' _n
 				local r=`:rowsof F'
 				forval i=1/`r' {
 					local p=string(F[`i',1]/`n'*100.0,"`pfmt'")+"%"
@@ -523,7 +550,7 @@ program define _rapor, rclass
 					local ll=substr(`"`ll'"',`ppp'+1,.)
 					file write fh `"<TR><TD><FONT face="`fontname'">`ll'</FONT></TD><TD  width=`wcolumn' align="right"><FONT face="`fontname'">`p'</FONT></TD><TD width=`wcolumn'><div class="bar" style="width: `p';"></TD><TD align="right"><FONT face="`fontname'">`=F[`i',1]'</FONT></TD></TR>"' _n
 				}
-				file write fh `"<TR><TD colspan=4 align="right"><FONT face="`fontname'"><B>Totals:`n'</B></FONT></TD></TR>"' _n
+				file write fh `"<TR><TD colspan=4 align="right"><FONT face="`fontname'"><B>`txt_total':`n'</B></FONT></TD></TR>"' _n
 				file write fh "</TABLE></CENTER>" _n
 			}
 		}
@@ -543,7 +570,7 @@ program define _rapor, rclass
 			}
 			
 			if (`noobs'==1) {
-				file write fh `"<FONT face="`fontname'">No observations</FONT>"'
+				file write fh `"<FONT face="`fontname'">`txt_no_observations'</FONT>"'
 			}
 			else {
 				local labels `"`Q_c__`q''"'
@@ -564,14 +591,14 @@ program define _rapor, rclass
 				file write fh `"<CENTER><A href="_`q'.png"><IMG src="_`q'.png" width=`wimage'></A></CENTER>"' _n
 
 				file write fh `"<CENTER><TABLE border="1" cellpadding="6" cellspacing="0" width="`wtable'px" style="border-collapse:collapse;">"' _n
-				file write fh `"<TH bgcolor="`hcolor'"><FONT face="`fontname'">Value</FONT></TH><TH bgcolor="`hcolor'" width=`wcolumn'><FONT face="`fontname'">Percent</FONT></TH><TH bgcolor="`hcolor'" width=`wcolumn'><FONT face="`fontname'">Responses</FONT></TH>"' _n
+				file write fh `"<TH bgcolor="`hcolor'"><FONT face="`fontname'">`txt_value'</FONT></TH><TH bgcolor="`hcolor'" width=`wcolumn'><FONT face="`fontname'">`txt_percent'</FONT></TH><TH bgcolor="`hcolor'" width=`wcolumn'><FONT face="`fontname'">`txt_responses'</FONT></TH>"' _n
 				local r=`:rowsof F'
 				forval i=1/`r' {
 					local p=string(F[`i',1],"`pfmt'")+"%"
 					gettoken ll labels : labels
 					file write fh `"<TR><TD><FONT face="`fontname'">`ll'</FONT></TD><TD align="right"><FONT face="`fontname'">`p'</FONT></TD><TD align="right"><FONT face="`fontname'">`=F[`i',2]'</FONT></TD></TR>"' _n
 				}
-				file write fh `"<TR><TD colspan=3 align="right"><FONT face="`fontname'"><B>Total responses:`n'</B></FONT></TD></TR>"' _n
+				file write fh `"<TR><TD colspan=3 align="right"><FONT face="`fontname'"><B>`txt_total_responses':`n'</B></FONT></TD></TR>"' _n
 				file write fh "</TABLE></CENTER>" _n
 			}
 		}
@@ -589,13 +616,16 @@ end
 program define _writeFileHeader
     version 18.0
     syntax anything
+	
+	python: setstyle()
+	
 	file write `anything' "<!DOCTYPE html"
 	file write `anything' "<HTML>" _n
 	file write `anything' `"<HEAD><META http-equiv="Content-Type" content="text/html; charset=utf-8"></HEAD>"' _n
 	file write `anything' "<STYLE>" _n
 	file write `anything' ".bar {" _n
 	file write `anything' "height:20px;" _n
-	file write `anything' "background-color: green;" _n
+	file write `anything' "background-color: `bcolor';" _n
 	file write `anything' "}" _n
 	file write `anything' "@media print {" _n
 	file write `anything' "    .pagebreak { page-break-before: always; }" _n
@@ -605,22 +635,24 @@ end
 
 program define _writeTitlePage
     version 18.0
-	syntax anything, title(string) proddate(string)
+	syntax anything, title(string) proddate(string) language(string)
+	
+	frame rapor_lng : python: setLanguage("`language'")
 	
 	// HEADER
 	_writeLogo `anything'
 	
 	file write `anything' `"<TABLE><TR><TD width=100><TD align=center>"' _n
 	file write `anything' `"<BR><BR>"' _n
-	file write `anything' `"<H1>Data Report</H1>"' _n
-	file write `anything' `"<H1>for</H1>"' _n
+	file write `anything' `"<H1>`txt_data_report'</H1>"' _n
+	//file write `anything' `"<H1>for</H1>"' _n
 	file write `anything' `"<H1><FONT color="Navy"><I>`title'</I></FONT></H1>"'_n
-	file write `anything' `"Data as of: `proddate'<BR><BR>"' _n
-	file write `anything' `"Built with <A href="https://github.com/radyakin/rapor">rapor</A>"' _n
+	file write `anything' `"`txt_data_as_of': `proddate'<BR><BR>"' _n
+	file write `anything' `"`txt_built_with' <A href="https://github.com/radyakin/rapor">rapor</A>"' _n
 	file write `anything' `"<BR><BR><BR><BR><BR><BR><BR><BR><BR>"' _n
 	file write `anything' `"</TD></TR></TABLE>"' _n
 	
-	_writeToc `anything'
+	_writeToc `anything', language("`language'")
 end
 
 
@@ -636,11 +668,13 @@ end
 
 program define _writeToc
     version 18.0
-	syntax anything
+	syntax anything , language(string)
 
-	python: Macro.setLocal("allvars",Q.all)
+	frame rapor_lng : python: setLanguage("`language'")
 	
-	file write `anything' `"<H2>Table of contents</H2>"' _n
+	python: Macro.setLocal("allvars", Q.all)
+	
+	file write `anything' `"<H2>`txt_table_of_contents'</H2>"' _n
 	file write `anything' `"<UL>"' _n
 	foreach v in `allvars' {
 		python: Macro.setLocal("qt", Q.titles["`v'"])
@@ -651,8 +685,8 @@ end
 
 
 program define _writeQuestionHeader
-    version 18.0
-    syntax anything, question(string)
+	version 18.0
+	syntax anything, question(string)
 	
 	python: Macro.setLocal("t",Q.getQuestionTitle("`question'"))
 	file write `anything' `"<div class="pagebreak"> </div>"' _n

@@ -513,7 +513,7 @@ program define _rapor, rclass
 
 				file write fh `"<CENTER><A href="_`q'.png"><IMG src="_`q'.png" width=`wimage'></A></CENTER>"' _n
 				file write fh `"<CENTER><TABLE border="1" cellpadding="6" cellspacing="0" width="`wtable'px" style="border-collapse:collapse;">"' _n
-				file write fh `"<TH bgcolor="`hcolor'"><FONT face="`fontname'">Value</FONT></TH><TH bgcolor="`hcolor'" width=`wcolumn'><FONT face="`fontname'">Percent</FONT></TH><TH bgcolor="`hcolor'" width=`wcolumn'><FONT face="`fontname'">Responses</FONT></TH>"' _n
+				file write fh `"<TH bgcolor="`hcolor'"><FONT face="`fontname'">Value</FONT></TH><TH colspan=2 bgcolor="`hcolor'"><FONT face="`fontname'">Percent</FONT></TH><TH bgcolor="`hcolor'" width=`wcolumn'><FONT face="`fontname'">Responses</FONT></TH>"' _n
 				local r=`:rowsof F'
 				forval i=1/`r' {
 					local p=string(F[`i',1]/`n'*100.0,"`pfmt'")+"%"
@@ -521,9 +521,9 @@ program define _rapor, rclass
 					gettoken ll labels : labels
 					local ppp=strpos(`"`ll'"', " ")
 					local ll=substr(`"`ll'"',`ppp'+1,.)
-					file write fh `"<TR><TD><FONT face="`fontname'">`ll'</FONT></TD><TD align="right"><FONT face="`fontname'">`p'</FONT></TD><TD align="right"><FONT face="`fontname'">`=F[`i',1]'</FONT></TD></TR>"' _n
+					file write fh `"<TR><TD><FONT face="`fontname'">`ll'</FONT></TD><TD  width=`wcolumn' align="right"><FONT face="`fontname'">`p'</FONT></TD><TD width=`wcolumn'><div class="bar" style="width: `p';"></TD><TD align="right"><FONT face="`fontname'">`=F[`i',1]'</FONT></TD></TR>"' _n
 				}
-				file write fh `"<TR><TD colspan=3 align="right"><FONT face="`fontname'"><B>Totals:`n'</B></FONT></TD></TR>"' _n
+				file write fh `"<TR><TD colspan=4 align="right"><FONT face="`fontname'"><B>Totals:`n'</B></FONT></TD></TR>"' _n
 				file write fh "</TABLE></CENTER>" _n
 			}
 		}
@@ -593,9 +593,13 @@ program define _writeFileHeader
 	file write `anything' "<HTML>" _n
 	file write `anything' `"<HEAD><META http-equiv="Content-Type" content="text/html; charset=utf-8"></HEAD>"' _n
 	file write `anything' "<STYLE>" _n
+	file write `anything' ".bar {" _n
+	file write `anything' "height:20px;" _n
+	file write `anything' "background-color: green;" _n
+	file write `anything' "}" _n
 	file write `anything' "@media print {" _n
 	file write `anything' "    .pagebreak { page-break-before: always; }" _n
-	file write `anything' "}"
+	file write `anything' "}" _n
 	file write `anything' "</STYLE>" _n
 end
 
